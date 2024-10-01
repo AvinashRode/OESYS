@@ -1,0 +1,96 @@
+pipeline {
+    agent any
+
+    parameters {
+        booleanParam(name: 'PLAN_TERRAFORM', defaultValue: false, description: 'Check to plan Terraform changes')
+        booleanParam(name: 'APPLY_TERRAFORM', defaultValue: false, description: 'Check to apply Terraform changes')
+        booleanParam(name: 'DESTROY_TERRAFORM', defaultValue: false, description: 'Check to destroy Terraform resources')
+    }
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                script {
+                    dir("terraform") {
+                        // Using git with credentialsId for authentication
+                        git credentialsId: 'github-credentials', branch: 'main', url: 'https://github.com/AvinashRode/OESYS-test.git'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-crendentails']]) {
+                        dir('terraform') {
+                            bat 'echo =================Terraform Init=================='
+                            bat 'terraform init'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            when {
+                expression { return params.PLAN_TERRAFORM }
+            }
+            steps {
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-crendentails']]) {
+                        dir('terraform') {
+                            bat 'echo =================Terraform Plan=================='
+                            bat 'terraform plan -out=tfplan'
+                            bat 'terraform show -no-color tfplan > tfplan.txt'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Approval') {
+            when {
+                expression { return params.PLAN_TERRAFORM && !params.APPLY_TERRAFORM }
+            }
+            steps {
+                script {
+                    def plan = readFile 'terraform/tfplan.txt'
+                    input message: "Do you want to apply the Terraform plan?", parameters: [text(name: 'Plan', description: 'Review the plan', defaultValue: plan)]
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            when {
+                expression { return params.APPLY_TERRAFORM }
+            }
+            steps {
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-crendentails']]) {
+                        dir('terraform') {
+                            bat 'echo =================Terraform Apply=================='
+                            bat 'terraform apply -input=false tfplan'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Destroy') {
+            when {
+                expression { return params.DESTROY_TERRAFORM }
+            }
+            steps {
+                script {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-crendentails']]) {
+                        dir('terraform') {
+                            bat 'echo =================Terraform Destroy=================='
+                            bat 'terraform destroy -auto-approve'
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

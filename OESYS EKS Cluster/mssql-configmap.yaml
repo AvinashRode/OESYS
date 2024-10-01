@@ -1,0 +1,8 @@
+# mssql-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mssql-config
+data:
+  MSSQL_SA_PASSWORD: "StrongPassword123!"
+  ACCEPT_EULA: "Y"

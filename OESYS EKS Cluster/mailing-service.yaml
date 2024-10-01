@@ -1,0 +1,12 @@
+# mailing-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailing-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: mailing
+  ports:
+  - port: 80
+    targetPort: 80
